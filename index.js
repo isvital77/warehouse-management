@@ -1,67 +1,60 @@
-const express = require('express'); // ייבוא Express
-const bodyParser = require('body-parser'); // ייבוא Body Parser
-const path = require('path'); // לעבודה עם נתיבי קבצים
-const xlsx = require('xlsx'); // לעבודה עם אקסל
+// טעינת ספריות נדרשות
+const express = require('express');
+const bodyParser = require('body-parser');
+const xlsx = require('xlsx');
 
+// יצירת אפליקציית Express
 const app = express();
-const PORT = 5001; // הגדרת פורט השרת
+const PORT = process.env.PORT || 5000; // פורט ברירת מחדל או הפורט של הסביבה
 
-// שימוש ב-bodyParser לפורמט JSON
+// הגדרת שימוש ב-body-parser לטיפול ב-JSON
 app.use(bodyParser.json());
 
-// מסלול ברירת מחדל
+// קריאה לקובץ Excel (נתיב לדוגמה)
+const workbook = xlsx.readFile('inventory_data.xlsx');
+const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+
+// המרת נתונים מקובץ ה-Excel למבנה JSON
+const inventoryData = xlsx.utils.sheet_to_json(worksheet);
+
+// **Routes - נתיבי ה-API**
+
+// ברירת מחדל - דף הבית
 app.get('/', (req, res) => {
-    res.send('Server is running!');
+  res.send('מערכת ניהול מחסנים פועלת בהצלחה!');
 });
 
-// רשימה לשמירת המוצרים
-const products = [];
-
-// מסלול POST להוספת מוצר
-app.post('/add-product', (req, res) => {
-    const { id, name, price } = req.body;
-    if (!id || !name || !price) {
-        res.status(400).send('Missing fields: id, name, or price');
-        return;
-    }
-
-    const product = { id, name, price };
-    products.push(product);
-    console.log('New product added:', product);
-    res.status(201).send(`Product added: ${JSON.stringify(product)}`);
+// הצגת כל הנתונים מהמחסן
+app.get('/api/inventory', (req, res) => {
+  res.json(inventoryData);
 });
 
-// מסלול GET להחזרת כל המוצרים
-app.get('/products', (req, res) => {
-    res.json(products);
+// חיפוש מוצר לפי שם
+app.get('/api/inventory/search', (req, res) => {
+  const { name } = req.query;
+  const filteredData = inventoryData.filter(item =>
+    item['product Name'] && item['product Name'].includes(name)
+  );
+
+  if (filteredData.length > 0) {
+    res.json(filteredData);
+  } else {
+    res.status(404).send('המוצר לא נמצא');
+  }
 });
 
-// מסלול DELETE למחיקת מוצר לפי ID
-app.delete('/delete-product/:id', (req, res) => {
-    const productId = parseInt(req.params.id);
-    const index = products.findIndex(product => product.id === productId);
-
-    if (index !== -1) {
-        products.splice(index, 1);
-        res.send(`Product with ID ${productId} deleted`);
-    } else {
-        res.status(404).send(`Product with ID ${productId} not found`);
-    }
+// הוספת פריט חדש
+app.post('/api/inventory', (req, res) => {
+  const newItem = req.body;
+  if (newItem && newItem['product Name']) {
+    inventoryData.push(newItem);
+    res.status(201).send('המוצר נוסף בהצלחה');
+  } else {
+    res.status(400).send('הנתונים שגויים');
+  }
 });
 
-// קריאת נתונים מקובץ אקסל
-const filePath = path.join(__dirname, 'inventory_data.xlsx');
-try {
-    const workbook = xlsx.readFile(filePath);
-    const sheetName = workbook.SheetNames[0];
-    const sheet = workbook.Sheets[sheetName];
-    const data = xlsx.utils.sheet_to_json(sheet);
-    console.log('Loaded data from Excel:', data);
-} catch (error) {
-    console.error('Error reading Excel file:', error.message);
-}
-
-// הפעלת השרת
+// הרצת השרת
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  console.log(`🔥 השרת פעיל בכתובת: http://localhost:${PORT}`);
 });
